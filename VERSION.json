@@ -1,0 +1,14 @@
+{
+  "name": "PROMETHEUS NODE FIRMWARE",
+  "version": "0.3",
+  "nodes": ["FULGUR", "AURORA"],
+  "changes": [
+    "PL9823 x6 redefined as local preview monitor",
+    "local preview remains active while SAFE when Ethernet and Art-Net are valid",
+    "SAFE/ARM now gates stage DMX only",
+    "DMX build runs PL9823 local preview and DMX output simultaneously",
+    "boot-in-ARM lockout preserved",
+    "ARM-to-SAFE immediately closes the DMX gate",
+    "Ethernet loss or Art-Net timeout blacks out preview and forces DMX to zero"
+  ]
+}
