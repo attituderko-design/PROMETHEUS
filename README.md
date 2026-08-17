@@ -1,4 +1,4 @@
-# PROMETHEUS — Scriabin Luce Controller v0.6.2
+# PROMETHEUS — Scriabin Luce Controller v0.6.3
 
 ## 正式コードネーム
 
@@ -8,7 +8,17 @@
 
 実行ファイル名も正式コードネームに合わせて **`PROMETHEUS.exe`** とします。
 
-## v0.6.2の主変更
+## v0.6.3の主変更
+
+### 本番安全性と通信安定性
+
+- Art-Net出力OFF時に3回のBLACKOUTフレームを即時送信
+- 定期送信を900msから200msへ短縮
+- FULGUR/AURORAを個別送信し、一方の異常で他方を止めない
+- IPアドレスとUniverseを保存前・送信前に検証
+- アプリがフォーカスを失った際にPCキーボード由来の音を解除
+- MIDI入力異常時にデバイスハンドルを確実に閉じる
+- ログを1MB×最大4世代にローテーション
 
 ### PCキーボード入力
 
@@ -114,7 +124,7 @@ dist\PROMETHEUS.exe
 py -m unittest discover -s tests -v
 ```
 
-v0.6.2作成時点で既存core tests 11件合格。
+v0.6.3作成時点でcore/app logic tests 17件合格。
 
 
 ## v0.6.2 keyboard input fix

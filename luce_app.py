@@ -7,6 +7,8 @@ import threading
 import time
 import tkinter as tk
 import sys
+from ipaddress import IPv4Address
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from tkinter import messagebox, ttk
 
@@ -38,6 +40,8 @@ PIANO_LOW = 21
 PIANO_HIGH = 108
 WHITE_PCS = {0, 2, 4, 5, 7, 9, 11}
 BLACK_PCS = {1, 3, 6, 8, 10}
+ARTNET_REFRESH_MS = 200
+ARTNET_BLACKOUT_REPETITIONS = 3
 
 # Laptop keyboard is a first-class performance input, not a test-only feature.
 # Both banks map one chromatic octave (C4-B4); pitch class determines Luce color.
@@ -86,10 +90,16 @@ DATA_DIR = app_data_dir()
 CONFIG_PATH = DATA_DIR / "config.json"
 LOG_PATH = DATA_DIR / "luce.log"
 
+_log_handler = RotatingFileHandler(
+    LOG_PATH,
+    maxBytes=1_000_000,
+    backupCount=3,
+    encoding="utf-8",
+)
 logging.basicConfig(
-    filename=LOG_PATH,
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
+    handlers=[_log_handler],
 )
 
 
@@ -355,7 +365,10 @@ class LuceApp:
 
         self.artnet_enabled = tk.BooleanVar(value=bool(self.cfg["artnet"]["enabled"]))
         ttk.Checkbutton(
-            light, text="Art-Net出力", variable=self.artnet_enabled
+            light,
+            text="Art-Net出力",
+            variable=self.artnet_enabled,
+            command=self._artnet_toggle_changed,
         ).grid(row=0, column=0, padx=(0, 8))
 
         ttk.Label(light, text=f"Luce 1 [{LUCE_CODENAMES[0]}] IP").grid(row=0, column=1)
@@ -522,6 +535,19 @@ class LuceApp:
         # excluded so typing an IP address cannot trigger notes.
         self.root.bind_all("<KeyPress>", self._pc_key_press, add="+")
         self.root.bind_all("<KeyRelease>", self._pc_key_release, add="+")
+        self.root.bind_all("<FocusOut>", self._pc_focus_out, add="+")
+
+    def _pc_focus_out(self, _event=None):
+        # A KeyRelease is delivered to whichever application owns focus at
+        # release time. Defer until Tk has completed the focus transition.
+        self.root.after_idle(self._clear_pc_keyboard_if_unfocused)
+
+    def _clear_pc_keyboard_if_unfocused(self):
+        try:
+            if self.root.focus_displayof() is None:
+                self._clear_pc_keyboard_notes()
+        except tk.TclError:
+            pass
 
     @staticmethod
     def _is_editable_text_input(widget):
@@ -811,10 +837,17 @@ class LuceApp:
                 )
 
     def _input_failed(self, voice_idx, error):
+        self.stop_events[voice_idx].set()
+        failed_input = self.inputs[voice_idx]
+        self.inputs[voice_idx] = None
+        if failed_input is not None:
+            try:
+                failed_input.close()
+            except Exception:
+                pass
         for note, sources in list(self.note_sources[voice_idx].items()):
             if "midi" in sources:
                 self._source_note_off(voice_idx, "midi", note, render=False)
-        self.inputs[voice_idx] = None
         self.status_labels[voice_idx].config(text="ERROR / 切断")
         self.render_and_output()
         self.gui_log(
@@ -870,7 +903,8 @@ class LuceApp:
         if hasattr(self, "white_var"):
             self.white_var.set(0.0)
         if hasattr(self, "rows"):
-            self.render_and_output(force_send=True)
+            self.render_and_output()
+            self.send_blackout_artnet(ARTNET_BLACKOUT_REPETITIONS)
         self.gui_log("PANIC / BLACKOUT")
 
     def _pitch_rgb(self, note):
@@ -924,7 +958,44 @@ class LuceApp:
         if self.artnet_enabled.get() or force_send:
             self.send_artnet()
 
-        if self.artnet_enabled.get():
+        self._update_artnet_status()
+
+    def _node_endpoint(self, idx):
+        codename = LUCE_CODENAMES[idx]
+        raw_ip = self.ip_vars[idx].get().strip()
+        try:
+            target_ip = str(IPv4Address(raw_ip))
+        except Exception as exc:
+            raise ValueError(f"{codename} IPが不正です: {raw_ip!r}") from exc
+
+        try:
+            universe = int(self.universe_vars[idx].get())
+        except Exception as exc:
+            raise ValueError(f"{codename} Universeが整数ではありません") from exc
+        if not 0 <= universe <= 32767:
+            raise ValueError(f"{codename} Universeは0～32767で指定してください")
+        return target_ip, universe
+
+    def _record_artnet_result(self, errors):
+        message = " / ".join(errors) if errors else None
+        if message == self.last_artnet_error:
+            self._update_artnet_status()
+            return
+
+        previous_error = self.last_artnet_error
+        self.last_artnet_error = message
+        if message is not None:
+            self.gui_log(f"Art-Net送信エラー: {message}")
+        elif previous_error is not None:
+            self.gui_log("Art-Net送信が復旧しました。")
+        self._update_artnet_status()
+
+    def _update_artnet_status(self):
+        if not hasattr(self, "artnet_status"):
+            return
+        if self.last_artnet_error:
+            self.artnet_status.config(text=f"Art-Net: ERROR | {self.last_artnet_error}")
+        elif self.artnet_enabled.get():
             self.artnet_status.config(
                 text=(
                     f"Art-Net: ON | L1 {self.ip_vars[0].get()} U{self.universe_vars[0].get()} "
@@ -933,6 +1004,20 @@ class LuceApp:
             )
         else:
             self.artnet_status.config(text="Art-Net: OFF")
+
+    def _send_frame_to_nodes(self, dmx, repetitions=1):
+        errors = []
+        count = max(1, int(repetitions))
+        for idx, sender in enumerate(self.senders):
+            try:
+                target_ip, universe = self._node_endpoint(idx)
+                sender.update(target_ip, universe)
+                for _ in range(count):
+                    sender.send_dmx(dmx)
+            except Exception as exc:
+                errors.append(f"{LUCE_CODENAMES[idx]}: {exc}")
+        self._record_artnet_result(errors)
+        return not errors
 
     def send_artnet(self):
         try:
@@ -943,42 +1028,65 @@ class LuceApp:
                 master=self.master_var.get() / 100.0,
                 final_white_level=self.final_white_level,
             )
-            for idx, sender in enumerate(self.senders):
-                sender.update(
-                    self.ip_vars[idx].get().strip(),
-                    int(self.universe_vars[idx].get()),
-                )
-                # Both independent nodes receive the same 12-output ArtDmx
-                # frame. Luce 1 consumes channels 1-18; Luce 2 consumes 19-36.
-                sender.send_dmx(dmx)
-
-            if self.last_artnet_error is not None:
-                self.gui_log("Art-Net送信が復旧しました。")
-                self.last_artnet_error = None
-
         except Exception as exc:
-            msg = str(exc)
-            if msg != self.last_artnet_error:
-                self.last_artnet_error = msg
-                self.gui_log(f"Art-Net送信エラー: {msg}")
-                self.artnet_status.config(text="Art-Net: ERROR")
+            self._record_artnet_result([f"DMX frame: {exc}"])
+            return False
+
+        # Both independent nodes receive the same 12-output ArtDmx frame.
+        # Luce 1 consumes channels 1-18; Luce 2 consumes channels 19-36.
+        return self._send_frame_to_nodes(dmx)
+
+    def send_blackout_artnet(self, repetitions=ARTNET_BLACKOUT_REPETITIONS):
+        try:
+            dmx = build_dmx_frame(
+                [None] * 12,
+                self.cfg["dmx"]["fixtures"],
+                self.cfg["pitch_class_colors"],
+                master=0.0,
+                final_white_level=0.0,
+            )
+        except Exception as exc:
+            self._record_artnet_result([f"blackout frame: {exc}"])
+            return False
+        return self._send_frame_to_nodes(dmx, repetitions=repetitions)
+
+    def _artnet_toggle_changed(self):
+        if self.artnet_enabled.get():
+            self.render_and_output(force_send=True)
+            self.gui_log("Art-Net出力 ON")
+        else:
+            self.send_blackout_artnet(ARTNET_BLACKOUT_REPETITIONS)
+            self._update_artnet_status()
+            self.gui_log("Art-Net出力 OFF / BLACKOUT送信")
 
     def _schedule_artnet_refresh(self):
         if self.artnet_enabled.get():
             self.send_artnet()
-        self.root.after(900, self._schedule_artnet_refresh)
+        self.root.after(ARTNET_REFRESH_MS, self._schedule_artnet_refresh)
 
     def save_config(self):
+        try:
+            endpoints = [self._node_endpoint(idx) for idx in range(2)]
+        except ValueError as exc:
+            messagebox.showerror("Art-Net設定", str(exc))
+            return
+
         self.cfg["artnet"]["enabled"] = bool(self.artnet_enabled.get())
         for idx, key in enumerate(("luce1", "luce2")):
-            self.cfg["artnet"][key]["target_ip"] = self.ip_vars[idx].get().strip()
-            self.cfg["artnet"][key]["universe"] = int(self.universe_vars[idx].get())
+            target_ip, universe = endpoints[idx]
+            self.cfg["artnet"][key]["target_ip"] = target_ip
+            self.cfg["artnet"][key]["universe"] = universe
         self.cfg["master_brightness"] = self.master_var.get() / 100.0
         self.cfg.setdefault("pc_keyboard", {})["enabled"] = bool(
             self.pc_keyboard_enabled.get()
         )
 
-        save_config_file(self.cfg)
+        try:
+            save_config_file(self.cfg)
+        except Exception as exc:
+            logging.exception("Config save failed")
+            messagebox.showerror("設定保存エラー", str(exc))
+            return
         self.gui_log(f"設定を保存しました: {CONFIG_PATH}")
 
     def reset_config(self):

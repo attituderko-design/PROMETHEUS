@@ -69,6 +69,26 @@ class DmxTests(unittest.TestCase):
     def test_map(self):
         self.assertEqual(validate_fixture_map(rgb_fixtures()), [])
 
+    def test_required_rgb_channels_cannot_be_empty(self):
+        fixtures = rgb_fixtures()
+        fixtures[0]["r"] = None
+        errors = validate_fixture_map(fixtures)
+        self.assertTrue(any("Fixture 1 r: channel is required" in e for e in errors))
+        with self.assertRaisesRegex(ValueError, "Fixture 1 r"):
+            build_dmx_frame([60] * 12, fixtures, COLORS)
+
+    def test_fixture_must_be_an_object(self):
+        fixtures = rgb_fixtures()
+        fixtures[0] = None
+        errors = validate_fixture_map(fixtures)
+        self.assertTrue(any("Fixture 1: expected an object" in e for e in errors))
+
+    def test_fractional_channel_is_rejected(self):
+        fixtures = rgb_fixtures()
+        fixtures[0]["r"] = 1.5
+        errors = validate_fixture_map(fixtures)
+        self.assertTrue(any("Fixture 1 r: invalid channel" in e for e in errors))
+
     def test_twelve_outputs(self):
         v1 = LuceVoiceState(3)
         v2 = LuceVoiceState(3)
@@ -101,6 +121,9 @@ class DmxTests(unittest.TestCase):
             packet = sender.make_packet(dmx)
             self.assertEqual(packet[:8], b"Art-Net\x00")
             self.assertEqual(packet[8:10], bytes([0x00, 0x50]))
+            self.assertEqual(packet[10:12], bytes([0x00, 0x0E]))
+            self.assertEqual(packet[12], 1)
+            self.assertEqual(packet[14:16], bytes([0x00, 0x00]))
             self.assertEqual(packet[16:18], bytes([0x00, 36]))
             self.assertEqual(packet[18:], dmx)
         finally:

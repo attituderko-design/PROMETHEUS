@@ -119,22 +119,38 @@ def logical_output_colors(
 
 def validate_fixture_map(fixtures: list[dict]) -> list[str]:
     errors: list[str] = []
+    if not isinstance(fixtures, list):
+        return ["Fixtures must be a list of 12 output definitions."]
     if len(fixtures) != 12:
         errors.append(f"Expected 12 fixtures/logical outputs, got {len(fixtures)}.")
 
+    required_fields = {"r", "g", "b"}
     used: dict[int, str] = {}
     for idx, fixture in enumerate(fixtures, start=1):
+        if not isinstance(fixture, dict):
+            errors.append(f"Fixture {idx}: expected an object, got {type(fixture).__name__}.")
+            continue
+
         for field in ("r", "g", "b", "w", "dimmer"):
             channel = fixture.get(field)
             if channel in (None, 0, ""):
+                if field in required_fields:
+                    errors.append(f"Fixture {idx} {field}: channel is required.")
+                continue
+            if isinstance(channel, bool):
+                errors.append(f"Fixture {idx} {field}: invalid channel {channel!r}.")
+                continue
+            if isinstance(channel, float) and not channel.is_integer():
+                errors.append(f"Fixture {idx} {field}: invalid channel {channel!r}.")
                 continue
             try:
                 channel = int(channel)
-            except Exception:
+            except (TypeError, ValueError, OverflowError):
                 errors.append(f"Fixture {idx} {field}: invalid channel {channel!r}.")
                 continue
             if not 1 <= channel <= 512:
                 errors.append(f"Fixture {idx} {field}: channel {channel} outside 1..512.")
+                continue
             if channel in used:
                 errors.append(
                     f"DMX channel {channel} used by both {used[channel]} "
@@ -154,9 +170,6 @@ def build_dmx_frame(
 ) -> bytes:
     if len(logical_notes) != 12:
         raise ValueError("logical_notes must contain exactly 12 outputs")
-    if len(fixtures) != 12:
-        raise ValueError("fixtures must contain exactly 12 output definitions")
-
     errors = validate_fixture_map(fixtures)
     if errors:
         raise ValueError("; ".join(errors))
