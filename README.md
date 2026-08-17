@@ -1,4 +1,4 @@
-# PROMETHEUS NODE FIRMWARE v0.3
+# PROMETHEUS NODE FIRMWARE v0.3.2
 
 PROMETHEUS用の**有線Art-Netノード**・ファームウェアです。
 
@@ -11,7 +11,22 @@ PROMETHEUS用の**有線Art-Netノード**・ファームウェアです。
 
 両方とも有線Ethernet専用です。Wi-Fiは使用しません。
 
-## v0.3: SAFE中のローカル・プレビュー
+## v0.3.2: ノード別の色遷移
+
+- FULGURは受信色へ即時に切り替わります。
+- AURORAはRGBを250msの線形フェードで切り替えます。
+- 同じ色のArt-Net再送ではフェード時間をリセットしません。
+- SAFE、LAN切断、Art-Netタイムアウト時のDMXゼロとプレビュー消灯は即時です。
+- フェード時間はビルド定義 `AURORA_FADE_MS` で調整できます。
+
+## v0.3.1: SAFE確認・ネットワーク復旧の強化
+
+- 起動時のSAFE入力も25msのデバウンス完了後に確認
+- ARM位置起動時の瞬間的なLOW誤検出で認証しない
+- Ethernet/UDP初期化失敗を2000ms間隔で再試行
+- PlatformIO Espressif32環境を6.13.0へ固定
+
+PL9823-F8 x6 の役割は、引き続き**ノード内蔵のローカル・プレビューモニター**です。
 
 PL9823-F8 x6 の役割を**ノード内蔵のローカル・プレビューモニター**として固定しました。
 
@@ -80,7 +95,7 @@ GPIO14                     -> 10kΩ -> GND
 
 ## 現在のPL9823プレビュー構成
 
-PROMETHEUS v0.6.2 は両ノードへ同じArtDmxフレームを送ります。
+PROMETHEUS v0.6.3 は両ノードへ同じArtDmxフレームを送ります。
 
 - FULGUR: `2.0.0.10`, Universe 0
 - AURORA: `2.0.0.11`, Universe 0
@@ -180,6 +195,6 @@ UDP:              6454
 
 ## 現時点の検証状態
 
-v0.3はソース実装段階です。こちらには実機がないため、ESP32-POE / WT32-ETH01への物理書込み・点灯試験は未実施です。また、この作業環境にはPlatformIOがないため、v0.3のESP32向け実コンパイルも未実施です。
+v0.3.2はPlatformIO 6.1.18 / Espressif32 6.13.0で、fulgur_pixel、aurora_pixel、fulgur_dmx、aurora_dmxの4構成すべてをビルド確認済みです。実機への物理書込み・点灯試験は未実施です。
 
 実機到着後の最初の作業は**FULGURのビルドと書込み**です。

@@ -12,7 +12,7 @@
 #endif
 
 // =============================================================================
-// PROMETHEUS NODE FIRMWARE v0.3
+// PROMETHEUS NODE FIRMWARE v0.3.2
 //
 // FULGUR  = Luce 1 node = Olimex ESP32-POE
 // AURORA  = Luce 2 node = Wireless-Tag WT32-ETH01
@@ -48,6 +48,14 @@
 
 #ifndef ARM_DEBOUNCE_MS
 #define ARM_DEBOUNCE_MS 25UL
+#endif
+
+#ifndef NETWORK_RETRY_MS
+#define NETWORK_RETRY_MS 2000UL
+#endif
+
+#ifndef AURORA_FADE_MS
+#define AURORA_FADE_MS 250UL
 #endif
 
 static constexpr uint16_t ARTNET_OPCODE_DMX = 0x5000;
@@ -96,18 +104,26 @@ static const IPAddress SUBNET_MASK(255, 0, 0, 0);
 WiFiUDP artnetUdp;
 uint8_t artnetBuffer[ARTNET_HEADER_SIZE + ARTNET_MAX_DMX];
 uint32_t lastArtNetMs = 0;
+bool ethernetStarted = false;
 bool udpStarted = false;
+uint32_t lastNetworkRetryMs = 0;
 
 // SAFE/ARM state. "armAuthorized" is intentionally NOT the raw switch state.
 // It only becomes true after a valid SAFE -> ARM transition since this boot.
 bool armRaw = false;
 bool armStable = false;
+bool armStableConfirmed = false;
 bool safeSeenSinceBoot = false;
 bool armAuthorized = false;
 uint32_t armRawChangedMs = 0;
 
 CRGB pixels[PIXEL_COUNT];
 CRGB requestedPixels[PIXEL_COUNT];
+
+#if defined(NODE_AURORA)
+CRGB auroraFadeStartPixels[PIXEL_COUNT];
+uint32_t auroraFadeStartMs = 0;
+#endif
 
 #if defined(OUTPUT_MODE_DMX)
 static constexpr uart_port_t DMX_UART = UART_NUM_2;
@@ -172,32 +188,110 @@ static void printNetworkStatus() {
 #endif
 }
 
-static void startEthernet() {
-    Serial.printf("[%s] starting Ethernet...\n", NODE_NAME);
-
-    if (!ETH.begin()) {
-        Serial.printf("[%s] ERROR: ETH.begin() failed\n", NODE_NAME);
-        return;
+static bool startUdpListener() {
+    if (udpStarted) {
+        return true;
     }
 
-    delay(100);
-
-    if (!ETH.config(NODE_IP, GATEWAY_IP, SUBNET_MASK)) {
-        Serial.printf("[%s] WARNING: static IP configuration returned false\n", NODE_NAME);
-    }
-
+    artnetUdp.stop();
     if (!artnetUdp.begin(ARTNET_PORT)) {
-        Serial.printf("[%s] ERROR: UDP bind on port %u failed\n",
+        Serial.printf("[%s] ERROR: UDP bind on port %u failed; retrying\n",
                       NODE_NAME, static_cast<unsigned>(ARTNET_PORT));
-        return;
+        return false;
     }
 
     udpStarted = true;
-    printNetworkStatus();
+    Serial.printf("[%s] UDP listener ready on port %u\n",
+                  NODE_NAME, static_cast<unsigned>(ARTNET_PORT));
+    return true;
 }
+
+static void startEthernet() {
+    lastNetworkRetryMs = millis();
+
+    if (!ethernetStarted) {
+        Serial.printf("[%s] starting Ethernet...\n", NODE_NAME);
+
+        if (!ETH.begin()) {
+            Serial.printf("[%s] ERROR: ETH.begin() failed; retrying\n", NODE_NAME);
+            return;
+        }
+        ethernetStarted = true;
+
+        delay(100);
+
+        if (!ETH.config(NODE_IP, GATEWAY_IP, SUBNET_MASK)) {
+            Serial.printf("[%s] WARNING: static IP configuration returned false\n", NODE_NAME);
+        }
+    }
+
+    if (startUdpListener()) {
+        printNetworkStatus();
+    }
+}
+
+static void serviceNetwork() {
+    if (ethernetStarted && udpStarted) {
+        return;
+    }
+    if ((millis() - lastNetworkRetryMs) < NETWORK_RETRY_MS) {
+        return;
+    }
+    startEthernet();
+}
+
+static uint8_t interpolateChannel(
+    uint8_t start,
+    uint8_t target,
+    uint32_t elapsed,
+    uint32_t duration
+) {
+    if (elapsed >= duration) {
+        return target;
+    }
+
+    const int32_t delta = static_cast<int32_t>(target) - start;
+    const int32_t value = static_cast<int32_t>(start) +
+                          ((delta * static_cast<int32_t>(elapsed)) /
+                           static_cast<int32_t>(duration));
+    return static_cast<uint8_t>(value);
+}
+
+#if defined(NODE_AURORA)
+static void advanceAuroraPixelFade(uint32_t now) {
+    const uint32_t elapsed = now - auroraFadeStartMs;
+    for (uint8_t i = 0; i < PIXEL_COUNT; ++i) {
+        pixels[i] = CRGB(
+            interpolateChannel(
+                auroraFadeStartPixels[i].r,
+                requestedPixels[i].r,
+                elapsed,
+                AURORA_FADE_MS
+            ),
+            interpolateChannel(
+                auroraFadeStartPixels[i].g,
+                requestedPixels[i].g,
+                elapsed,
+                AURORA_FADE_MS
+            ),
+            interpolateChannel(
+                auroraFadeStartPixels[i].b,
+                requestedPixels[i].b,
+                elapsed,
+                AURORA_FADE_MS
+            )
+        );
+    }
+}
+#endif
 
 static void blackoutPixels() {
     fill_solid(pixels, PIXEL_COUNT, CRGB::Black);
+#if defined(NODE_AURORA)
+    fill_solid(requestedPixels, PIXEL_COUNT, CRGB::Black);
+    fill_solid(auroraFadeStartPixels, PIXEL_COUNT, CRGB::Black);
+    auroraFadeStartMs = millis();
+#endif
     FastLED.show();
 }
 
@@ -210,9 +304,13 @@ static void refreshPixelPreview() {
         return;
     }
 
+#if defined(NODE_AURORA)
+    advanceAuroraPixelFade(millis());
+#else
     for (uint8_t i = 0; i < PIXEL_COUNT; ++i) {
         pixels[i] = requestedPixels[i];
     }
+#endif
     FastLED.show();
 }
 
@@ -220,18 +318,48 @@ static void setupPixelOutput() {
     FastLED.addLeds<PL9823, PIXEL_DATA_PIN, RGB>(pixels, PIXEL_COUNT);
     FastLED.setBrightness(255);
     fill_solid(requestedPixels, PIXEL_COUNT, CRGB::Black);
+#if defined(NODE_AURORA)
+    fill_solid(auroraFadeStartPixels, PIXEL_COUNT, CRGB::Black);
+    auroraFadeStartMs = millis();
+#endif
     blackoutPixels();
     Serial.printf("[%s] PL9823 local preview initialized\n", NODE_NAME);
 }
 
 static void cachePixelPayload(const uint8_t* dmx, uint16_t dmxLen) {
+    CRGB newPixels[PIXEL_COUNT];
     for (uint8_t i = 0; i < PIXEL_COUNT; ++i) {
         const uint16_t base = PIXEL_DMX_OFFSET + (i * 3);
         const uint8_t r = (base + 0 < dmxLen) ? dmx[base + 0] : 0;
         const uint8_t g = (base + 1 < dmxLen) ? dmx[base + 1] : 0;
         const uint8_t b = (base + 2 < dmxLen) ? dmx[base + 2] : 0;
-        requestedPixels[i] = CRGB(r, g, b);
+        newPixels[i] = CRGB(r, g, b);
     }
+
+#if defined(NODE_AURORA)
+    const uint32_t now = millis();
+    advanceAuroraPixelFade(now);
+
+    bool changed = false;
+    for (uint8_t i = 0; i < PIXEL_COUNT; ++i) {
+        changed = changed ||
+                  newPixels[i].r != requestedPixels[i].r ||
+                  newPixels[i].g != requestedPixels[i].g ||
+                  newPixels[i].b != requestedPixels[i].b;
+    }
+
+    if (changed) {
+        for (uint8_t i = 0; i < PIXEL_COUNT; ++i) {
+            auroraFadeStartPixels[i] = pixels[i];
+            requestedPixels[i] = newPixels[i];
+        }
+        auroraFadeStartMs = now;
+    }
+#else
+    for (uint8_t i = 0; i < PIXEL_COUNT; ++i) {
+        requestedPixels[i] = newPixels[i];
+    }
+#endif
 }
 
 #if defined(OUTPUT_MODE_DMX)
@@ -282,6 +410,14 @@ static void sendPhysicalDmxFrame() {
 
     if (dmxOutputAllowed()) {
         std::memcpy(dmxFrame + 1, requestedDmxSlots, ARTNET_MAX_DMX);
+#if defined(NODE_AURORA)
+        for (uint8_t i = 0; i < PIXEL_COUNT; ++i) {
+            const uint16_t base = PIXEL_DMX_OFFSET + (i * 3);
+            dmxFrame[base + 1] = pixels[i].r;
+            dmxFrame[base + 2] = pixels[i].g;
+            dmxFrame[base + 3] = pixels[i].b;
+        }
+#endif
     } else {
         // SAFE, boot lockout, Ethernet loss, and Art-Net timeout all produce
         // CONTINUOUS legal zero DMX rather than disappearing DMX signal.
@@ -320,16 +456,16 @@ static void setupArmInterlock() {
 
     armRaw = readArmRaw();
     armStable = armRaw;
+    armStableConfirmed = false;
     armRawChangedMs = millis();
-    safeSeenSinceBoot = !armStable;
+    safeSeenSinceBoot = false;
     armAuthorized = false; // ALWAYS boot SAFE, even if switch is already ARM.
 
     if (armStable) {
-        Serial.printf("[%s] boot switch=ARM -> LOCKED SAFE; cycle through SAFE before ARM\n",
+        Serial.printf("[%s] boot switch=ARM -> LOCKED SAFE; waiting for stable input\n",
                       NODE_NAME);
     } else {
-        Serial.printf("[%s] boot switch=SAFE -> SAFE observed; next SAFE->ARM may authorize\n",
-                      NODE_NAME);
+        Serial.printf("[%s] boot switch=SAFE -> confirming stable SAFE\n", NODE_NAME);
     }
 }
 
@@ -346,6 +482,24 @@ static void serviceArmInterlock() {
     if (now != armRaw) {
         armRaw = now;
         armRawChangedMs = millis();
+    }
+
+    if (!armStableConfirmed) {
+        if ((millis() - armRawChangedMs) < ARM_DEBOUNCE_MS) {
+            return;
+        }
+
+        armStable = armRaw;
+        armStableConfirmed = true;
+        if (!armStable) {
+            safeSeenSinceBoot = true;
+            Serial.printf("[%s] boot input stable=SAFE; next SAFE->ARM may authorize\n",
+                          NODE_NAME);
+        } else {
+            Serial.printf("[%s] boot input stable=ARM -> LOCKED SAFE; cycle through SAFE\n",
+                          NODE_NAME);
+        }
+        return;
     }
 
     if (armStable == armRaw) {
@@ -474,7 +628,7 @@ void setup() {
 
     Serial.println();
     Serial.println("==============================================");
-    Serial.println(" PROMETHEUS NODE FIRMWARE v0.3");
+    Serial.println(" PROMETHEUS NODE FIRMWARE v0.3.2");
     Serial.println("==============================================");
 
     setupPixelOutput();
@@ -488,12 +642,19 @@ void setup() {
 
 void loop() {
     serviceArmInterlock();
+    serviceNetwork();
 
     while (processOneArtNetPacket()) {
         serviceArmInterlock();
     }
 
     enforceOutputGates();
+
+#if defined(NODE_AURORA)
+    if (previewAllowed()) {
+        refreshPixelPreview();
+    }
+#endif
 
 #if defined(OUTPUT_MODE_DMX)
     sendPhysicalDmxFrame();
@@ -508,7 +669,9 @@ void loop() {
                       NODE_NAME,
                       ETH.linkUp() ? "UP" : "DOWN",
                       ETH.localIP().toString().c_str(),
-                      armStable ? "ARM" : "SAFE",
+                      armStableConfirmed
+                          ? (armStable ? "ARM" : "SAFE")
+                          : "CHECK",
                       armAuthorized ? "YES" : "NO",
                       artNetFresh() ? "YES" : "NO",
                       previewAllowed() ? "ACTIVE" : "BLACK",

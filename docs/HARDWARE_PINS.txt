@@ -1,4 +1,4 @@
-PROMETHEUS NODE v0.3 - PIN RESERVATION
+PROMETHEUS NODE v0.3.2 - PIN RESERVATION
 ======================================
 
 COMMON SAFE/ARM INTERLOCK
@@ -14,12 +14,13 @@ GPIO14 <- SAFE/ARM sense (ACTIVE HIGH)
 Firmware behavior:
   * stage DMX power-up state is ALWAYS SAFE
   * boot with switch already ARM = DMX LOCKED SAFE
-  * must observe SAFE, then SAFE->ARM, to authorize stage DMX
+  * must observe SAFE stable for 25 ms, then SAFE->ARM, to authorize stage DMX
   * ARM->SAFE immediately closes stage DMX gate
   * SAFE does NOT blank the six PL9823 local-preview LEDs
   * preview requires Ethernet link + fresh valid Art-Net
   * stage DMX requires ARM authorization + Ethernet link + fresh valid Art-Net
   * Art-Net timeout = 1500 ms
+  * Ethernet/UDP startup failure retry = 2000 ms
 
 The red LED has an internal 560 ohm resistor. The switch is driven from 3.3V so
 its switched output is safe for the ESP32 GPIO.
