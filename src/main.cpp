@@ -12,9 +12,9 @@
 #endif
 
 // =============================================================================
-// PROMETHEUS NODE FIRMWARE v0.3.2
+// PROMETHEUS NODE FIRMWARE v0.3.3
 //
-// FULGUR  = Luce 1 node = Olimex ESP32-POE
+// FULGUR  = Luce 1 node = Wireless-Tag WT32-ETH01
 // AURORA  = Luce 2 node = Wireless-Tag WT32-ETH01
 //
 // Safety interlock and local preview:
@@ -73,7 +73,7 @@ static constexpr bool ARM_ACTIVE_HIGH = true;
 
 #if defined(NODE_FULGUR)
 static constexpr const char* NODE_NAME = "FULGUR";
-static constexpr const char* BOARD_NAME = "Olimex ESP32-POE";
+static constexpr const char* BOARD_NAME = "Wireless-Tag WT32-ETH01";
 static constexpr uint8_t NODE_IP_LAST_OCTET = 10;
 static constexpr uint16_t PIXEL_DMX_OFFSET = 0;
 static constexpr int DMX_TX_PIN = 33;
@@ -628,7 +628,7 @@ void setup() {
 
     Serial.println();
     Serial.println("==============================================");
-    Serial.println(" PROMETHEUS NODE FIRMWARE v0.3.2");
+    Serial.println(" PROMETHEUS NODE FIRMWARE v0.3.3");
     Serial.println("==============================================");
 
     setupPixelOutput();
