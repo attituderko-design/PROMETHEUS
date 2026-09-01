@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1200" viewBox="0 0 1800 1200">
+  <defs>
+    <style>
+      text { font-family: "Yu Gothic", "Meiryo", sans-serif; fill: #18202b; }
+      .title { font-size: 38px; font-weight: 800; fill: #f8fafc; }
+      .subtitle { font-size: 17px; fill: #cbd5e1; }
+      .section { font-size: 22px; font-weight: 800; fill: #0f172a; }
+      .label { font-size: 16px; font-weight: 700; }
+      .small { font-size: 14px; }
+      .tiny { font-size: 12px; }
+      .mono { font-family: "Cascadia Mono", "Consolas", monospace; }
+      .box { fill: #ffffff; stroke: #94a3b8; stroke-width: 2; rx: 14; }
+      .component { fill: #f8fafc; stroke: #334155; stroke-width: 2; rx: 8; }
+      .pin { fill: #ffffff; stroke: #475569; stroke-width: 1.5; rx: 4; }
+      .wire5 { fill: none; stroke: #dc2626; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+      .wire33 { fill: none; stroke: #f59e0b; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+      .wiredata { fill: none; stroke: #0f766e; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+      .wiregnd { fill: none; stroke: #111827; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+      .wireneutral { fill: none; stroke: #64748b; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+      .net { font-size: 13px; font-weight: 800; }
+    </style>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrowData" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0f766e"/>
+    </marker>
+  </defs>
+
+  <rect width="1800" height="1200" fill="#eef2f7"/>
+  <rect x="0" y="0" width="1800" height="92" fill="#172033"/>
+  <text class="title" x="48" y="52">FULGUR v3 — 正式回路図</text>
+  <text class="subtitle" x="50" y="78">ESP32-POE + SN74AHCT125N + PL9823-F8 × 6　｜　外部5V単独給電版　｜　2026-08-17</text>
+
+  <rect x="45" y="108" width="1710" height="58" rx="12" fill="#fff1f2" stroke="#e11d48" stroke-width="2"/>
+  <text x="68" y="135" font-size="18" font-weight="800" fill="#be123c">重要：この図ではACアダプター5Vを唯一の電源にする。電源ON中はPoE給電・Micro-USB・LiPoを接続しない。</text>
+  <text x="68" y="157" font-size="14" fill="#881337">RJ45は通信専用（PoEなし）。書込み時は主電源OFF・PoE-LANを抜いてからMicro-USBを接続する。</text>
+
+  <!-- Power -->
+  <g filter="url(#shadow)">
+    <rect class="box" x="45" y="188" width="430" height="270"/>
+  </g>
+  <text class="section" x="68" y="220">1. 電源</text>
+  <rect class="component" x="70" y="250" width="145" height="92"/>
+  <text class="label" x="142" y="276" text-anchor="middle">5V / 2A</text>
+  <text class="small" x="142" y="299" text-anchor="middle">ACアダプター</text>
+  <text class="tiny" x="142" y="323" text-anchor="middle">センタープラス</text>
+  <rect class="component" x="255" y="250" width="88" height="92"/>
+  <text class="label" x="299" y="285" text-anchor="middle">SW1</text>
+  <text class="small" x="299" y="309" text-anchor="middle">主電源</text>
+  <path class="wire5" d="M215 272 H255"/>
+  <path class="wire5" d="M343 272 H446"/>
+  <circle cx="446" cy="272" r="7" fill="#dc2626"/>
+  <text class="net" x="438" y="255" text-anchor="end" fill="#dc2626">+5V_BUS</text>
+  <path class="wiregnd" d="M215 322 H446"/>
+  <circle cx="446" cy="322" r="7" fill="#111827"/>
+  <text class="net" x="438" y="347" text-anchor="end">GND</text>
+  <text class="small" x="70" y="388">DCジャック MJ-10H：中心 → SW1 → +5V</text>
+  <text class="small" x="70" y="414">外周 → GND（極性は通電前にテスター確認）</text>
+  <text class="tiny" x="70" y="439" fill="#475569">CW-SB11KKFF は＋側だけを開閉</text>
+
+  <!-- ESP32 -->
+  <g filter="url(#shadow)"><rect class="box" x="500" y="188" width="335" height="270"/></g>
+  <text class="section" x="523" y="220">2. 制御基板</text>
+  <rect x="545" y="248" width="245" height="160" rx="14" fill="#e0f2fe" stroke="#0369a1" stroke-width="2.5"/>
+  <text x="667" y="278" text-anchor="middle" font-size="20" font-weight="800">Olimex ESP32-POE</text>
+  <text class="small mono" x="567" y="311">+5V   ← +5V_BUS</text>
+  <text class="small mono" x="567" y="337">GND   ← GND</text>
+  <text class="small mono" x="567" y="363" fill="#0f766e">GPIO4 → PIXEL_DATA</text>
+  <text class="small mono" x="567" y="389" fill="#b45309">GPIO14← ARM_SENSE</text>
+  <text class="small" x="523" y="432">3.3V出力はSAFE/ARMスイッチ専用</text>
+  <path class="wire5" d="M500 266 H545"/>
+  <path class="wiregnd" d="M500 326 H545"/>
+  <text class="net" x="504" y="258" fill="#dc2626">+5V</text>
+  <text class="net" x="504" y="348">GND</text>
+
+  <!-- Level shifter -->
+  <g filter="url(#shadow)"><rect class="box" x="860" y="188" width="895" height="270"/></g>
+  <text class="section" x="883" y="220">3. 3.3V → 5V データ変換</text>
+  <rect x="915" y="246" width="340" height="170" rx="10" fill="#f3e8ff" stroke="#7e22ce" stroke-width="2.5"/>
+  <path d="M1028 246 q57 56 114 0" fill="none" stroke="#7e22ce" stroke-width="2"/>
+  <text x="1085" y="278" text-anchor="middle" font-size="19" font-weight="800">U1 SN74AHCT125N</text>
+  <text class="small mono" x="938" y="309">14 VCC  → +5V_BUS</text>
+  <text class="small mono" x="938" y="334"> 7 GND  → GND</text>
+  <text class="small mono" x="938" y="359"> 1 /1OE → GND（常時有効）</text>
+  <text class="small mono" x="938" y="384"> 2 1A ← GPIO4　3 1Y → R0</text>
+  <path class="wire5" d="M860 257 H915"/>
+  <path class="wiregnd" d="M860 401 H915"/>
+  <rect class="component" x="1310" y="246" width="395" height="170"/>
+  <text class="label" x="1333" y="275">未使用ゲート（浮かせない）</text>
+  <text class="small mono" x="1333" y="306">pin 4 /2OE + pin 5 2A → GND</text>
+  <text class="small mono" x="1333" y="333">pin10 /3OE + pin 9 3A → GND</text>
+  <text class="small mono" x="1333" y="360">pin13 /4OE + pin12 4A → GND</text>
+  <text class="small mono" x="1333" y="387">pin 6, 8, 11（各Y） → NC</text>
+  <text class="tiny" x="883" y="440">C1 0.1µFをpin14–pin7のすぐ近くに置く（足を短く）</text>
+
+  <!-- ARM switch -->
+  <g filter="url(#shadow)"><rect class="box" x="45" y="482" width="790" height="258"/></g>
+  <text class="section" x="68" y="516">4. SAFE / ARM スイッチ（GPIO14）</text>
+  <circle cx="115" cy="608" r="35" fill="#fee2e2" stroke="#dc2626" stroke-width="3"/>
+  <text class="label" x="115" y="603" text-anchor="middle">S2</text>
+  <text class="tiny" x="115" y="622" text-anchor="middle">ASW-07D</text>
+  <path class="wire33" d="M70 565 H115 V573"/>
+  <text class="net" x="70" y="550" fill="#b45309">ESP32 3.3V</text>
+  <path class="wiredata" d="M150 608 H525" marker-end="url(#arrowData)"/>
+  <text class="net" x="275" y="594" fill="#0f766e">ARM_SENSE</text>
+  <rect class="component" x="535" y="568" width="220" height="80"/>
+  <text class="label" x="645" y="599" text-anchor="middle">ESP32 GPIO14</text>
+  <text class="small" x="645" y="625" text-anchor="middle">HIGH=ARM / LOW=SAFE</text>
+  <path class="wireneutral" d="M360 608 V680"/>
+  <rect x="337" y="640" width="46" height="25" fill="#fef3c7" stroke="#92400e"/>
+  <text class="tiny" x="360" y="658" text-anchor="middle">10kΩ</text>
+  <path class="wiregnd" d="M360 680 H755"/>
+  <path class="wiregnd" d="M115 643 V680"/>
+  <text class="small" x="82" y="711">S2 LED/GND端子 → GND　｜　10kΩはGPIO14のプルダウン</text>
+
+  <!-- Notes -->
+  <g filter="url(#shadow)"><rect class="box" x="860" y="482" width="895" height="258"/></g>
+  <text class="section" x="883" y="516">実装上の要点</text>
+  <circle cx="904" cy="558" r="13" fill="#0f766e"/><text x="904" y="563" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">1</text>
+  <text class="small" x="929" y="563">ICは14ピンソケット使用を推奨。切欠き方向を合わせ、IC本体は最後に挿す。</text>
+  <circle cx="904" cy="596" r="13" fill="#0f766e"/><text x="904" y="601" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">2</text>
+  <text class="small" x="929" y="601">各PL9823のpin1–pin3間へ0.1µF。LED本体のすぐ近く、足は最短。</text>
+  <circle cx="904" cy="634" r="13" fill="#0f766e"/><text x="904" y="639" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">3</text>
+  <text class="small" x="929" y="639">USBケーブル流用線は色を信用せず、両端をテスターの導通モードで特定。</text>
+  <circle cx="904" cy="672" r="13" fill="#0f766e"/><text x="904" y="677" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">4</text>
+  <text class="small" x="929" y="677">グルーは絶縁材ではなく固定補助。はんだ部は熱収縮チューブで絶縁してから固定。</text>
+  <rect x="883" y="696" width="846" height="28" rx="6" fill="#fffbeb"/>
+  <text class="tiny" x="899" y="715" fill="#92400e">ESP32-POEのMicroSDを使う場合、GPIO14と競合するため本回路のまま併用しない。</text>
+
+  <!-- Pixel chain -->
+  <g filter="url(#shadow)"><rect class="box" x="45" y="765" width="1710" height="315"/></g>
+  <text class="section" x="68" y="800">5. PL9823-F8 データチェーン（6灯）</text>
+  <text class="small" x="68" y="826">全LED共通：pin1=GND、pin3=+5V。データだけが pin4(DIN) → pin2(DOUT) の順に渡る。</text>
+
+  <text class="net" x="76" y="893" fill="#0f766e">U1 pin3</text>
+  <path class="wiredata" d="M72 912 H126" marker-end="url(#arrowData)"/>
+
+  <!-- six resistor/LED stages -->
+  <g transform="translate(128,850)">
+    <rect x="0" y="44" width="58" height="34" rx="5" fill="#fef3c7" stroke="#92400e"/><text class="tiny" x="29" y="66" text-anchor="middle">R0 75Ω</text>
+    <path class="wiredata" d="M58 61 H88" marker-end="url(#arrowData)"/>
+    <rect x="90" y="0" width="145" height="145" rx="12" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+    <text class="label" x="162" y="27" text-anchor="middle">LED 1</text>
+    <text class="tiny mono" x="105" y="55">4 DIN</text><text class="tiny mono" x="105" y="76">2 DOUT</text>
+    <text class="tiny mono" x="105" y="97" fill="#dc2626">3 +5V</text><text class="tiny mono" x="105" y="118">1 GND</text>
+    <text class="tiny" x="162" y="137" text-anchor="middle">C2 0.1µF</text>
+  </g>
+  <g transform="translate(393,850)">
+    <rect x="0" y="44" width="58" height="34" rx="5" fill="#fef3c7" stroke="#92400e"/><text class="tiny" x="29" y="66" text-anchor="middle">R1 75Ω</text>
+    <path class="wiredata" d="M-30 61 H0"/><path class="wiredata" d="M58 61 H88" marker-end="url(#arrowData)"/>
+    <rect x="90" y="0" width="145" height="145" rx="12" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+    <text class="label" x="162" y="27" text-anchor="middle">LED 2</text><text class="tiny mono" x="105" y="55">4 DIN</text><text class="tiny mono" x="105" y="76">2 DOUT</text><text class="tiny mono" x="105" y="97" fill="#dc2626">3 +5V</text><text class="tiny mono" x="105" y="118">1 GND</text><text class="tiny" x="162" y="137" text-anchor="middle">C3 0.1µF</text>
+  </g>
+  <g transform="translate(658,850)">
+    <rect x="0" y="44" width="58" height="34" rx="5" fill="#fef3c7" stroke="#92400e"/><text class="tiny" x="29" y="66" text-anchor="middle">R2 75Ω</text>
+    <path class="wiredata" d="M-30 61 H0"/><path class="wiredata" d="M58 61 H88" marker-end="url(#arrowData)"/>
+    <rect x="90" y="0" width="145" height="145" rx="12" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+    <text class="label" x="162" y="27" text-anchor="middle">LED 3</text><text class="tiny mono" x="105" y="55">4 DIN</text><text class="tiny mono" x="105" y="76">2 DOUT</text><text class="tiny mono" x="105" y="97" fill="#dc2626">3 +5V</text><text class="tiny mono" x="105" y="118">1 GND</text><text class="tiny" x="162" y="137" text-anchor="middle">C4 0.1µF</text>
+  </g>
+  <g transform="translate(923,850)">
+    <rect x="0" y="44" width="58" height="34" rx="5" fill="#fef3c7" stroke="#92400e"/><text class="tiny" x="29" y="66" text-anchor="middle">R3 75Ω</text>
+    <path class="wiredata" d="M-30 61 H0"/><path class="wiredata" d="M58 61 H88" marker-end="url(#arrowData)"/>
+    <rect x="90" y="0" width="145" height="145" rx="12" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+    <text class="label" x="162" y="27" text-anchor="middle">LED 4</text><text class="tiny mono" x="105" y="55">4 DIN</text><text class="tiny mono" x="105" y="76">2 DOUT</text><text class="tiny mono" x="105" y="97" fill="#dc2626">3 +5V</text><text class="tiny mono" x="105" y="118">1 GND</text><text class="tiny" x="162" y="137" text-anchor="middle">C5 0.1µF</text>
+  </g>
+  <g transform="translate(1188,850)">
+    <rect x="0" y="44" width="58" height="34" rx="5" fill="#fef3c7" stroke="#92400e"/><text class="tiny" x="29" y="66" text-anchor="middle">R4 75Ω</text>
+    <path class="wiredata" d="M-30 61 H0"/><path class="wiredata" d="M58 61 H88" marker-end="url(#arrowData)"/>
+    <rect x="90" y="0" width="145" height="145" rx="12" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+    <text class="label" x="162" y="27" text-anchor="middle">LED 5</text><text class="tiny mono" x="105" y="55">4 DIN</text><text class="tiny mono" x="105" y="76">2 DOUT</text><text class="tiny mono" x="105" y="97" fill="#dc2626">3 +5V</text><text class="tiny mono" x="105" y="118">1 GND</text><text class="tiny" x="162" y="137" text-anchor="middle">C6 0.1µF</text>
+  </g>
+  <g transform="translate(1453,850)">
+    <rect x="0" y="44" width="58" height="34" rx="5" fill="#fef3c7" stroke="#92400e"/><text class="tiny" x="29" y="66" text-anchor="middle">R5 75Ω</text>
+    <path class="wiredata" d="M-30 61 H0"/><path class="wiredata" d="M58 61 H88" marker-end="url(#arrowData)"/>
+    <rect x="90" y="0" width="145" height="145" rx="12" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+    <text class="label" x="162" y="27" text-anchor="middle">LED 6</text><text class="tiny mono" x="105" y="55">4 DIN</text><text class="tiny mono" x="105" y="76">2 DOUT</text><text class="tiny mono" x="105" y="97" fill="#dc2626">3 +5V</text><text class="tiny mono" x="105" y="118">1 GND</text><text class="tiny" x="162" y="137" text-anchor="middle">C7 0.1µF</text>
+    <text class="tiny" x="162" y="169" text-anchor="middle" fill="#be123c">pin2 DOUT = 未接続</text>
+  </g>
+  <path class="wiredata" d="M363 911 H393 M628 911 H658 M893 911 H923 M1158 911 H1188 M1423 911 H1453"/>
+  <path class="wire5" d="M218 1015 H1688"/>
+  <path class="wiregnd" d="M218 1048 H1688"/>
+  <text class="net" x="70" y="1020" fill="#dc2626">+5V_BUS → 全pin3</text>
+  <text class="net" x="70" y="1053">GND → 全pin1</text>
+
+  <!-- Footer -->
+  <text class="small" x="50" y="1125" font-weight="800">配線色（推奨）</text>
+  <line x1="182" y1="1120" x2="242" y2="1120" class="wire5"/><text class="small" x="252" y="1125">赤 = +5V</text>
+  <line x1="350" y1="1120" x2="410" y2="1120" class="wire33"/><text class="small" x="420" y="1125">黄 = 3.3V</text>
+  <line x1="535" y1="1120" x2="595" y2="1120" class="wiredata"/><text class="small" x="605" y="1125">緑/白 = 信号</text>
+  <line x1="740" y1="1120" x2="800" y2="1120" class="wiregnd"/><text class="small" x="810" y="1125">黒 = GND</text>
+  <text class="tiny" x="50" y="1162" fill="#475569">基準：おかいものリスト_FULGUR_v3_LEDケース実装.xlsx「設計図_修正版」「配線一覧」／ GPIO4・GPIO14はファームウェア v0.3.2 と照合済み</text>
+</svg>

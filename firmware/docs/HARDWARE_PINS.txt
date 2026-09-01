@@ -1,0 +1,95 @@
+PROMETHEUS NODE v0.3.3 - PIN RESERVATION
+======================================
+
+COMMON HARDWARE
+---------------
+Both tabletop nodes use Wireless-Tag WT32-ETH01.
+Ethernet is wired only; Wi-Fi is not used.
+
+COMMON SAFE/ARM INTERLOCK
+-------------------------
+GPIO14 <- SAFE/ARM sense (ACTIVE HIGH)
+
+107058 red missile switch wiring for the prototype:
+  switch + terminal        -> 3.3V
+  switch lamp/GND terminal -> GND
+  switched-output terminal -> GPIO14
+  GPIO14 -> 10k ohm -> GND  (external pulldown)
+
+Firmware behavior:
+  * stage DMX power-up state is ALWAYS SAFE
+  * boot with switch already ARM = DMX LOCKED SAFE
+  * must observe SAFE stable for 25 ms, then SAFE->ARM, to authorize stage DMX
+  * ARM->SAFE immediately closes stage DMX gate
+  * SAFE does NOT blank the six PL9823 local-preview LEDs
+  * preview requires Ethernet link + fresh valid Art-Net
+  * stage DMX requires ARM authorization + Ethernet link + fresh valid Art-Net
+  * Art-Net timeout = 1500 ms
+  * Ethernet/UDP startup failure retry = 2000 ms
+
+The red LED has an internal 560 ohm resistor. The switch is driven from 3.3V so
+its switched output is safe for the ESP32 GPIO.
+
+
+FULGUR / WT32-ETH01
+-------------------
+LOCAL PREVIEW:
+  GPIO4  -> SN74AHCT125N input -> PL9823-F8 x6
+  Art-Net channels 1..18
+
+SAFE/ARM:
+  GPIO14 <- 107058 switched output + external 10k pulldown
+
+FUTURE / FINAL DMX:
+  GPIO33 -> RS-485 DI (UART TX)
+  GPIO32 -> RS-485 DE + /RE control
+
+Static IP:
+  2.0.0.10 / 255.0.0.0
+
+Programming:
+  AE-FT234X TXD -> WT32 RX0
+  AE-FT234X RXD -> WT32 TX0
+  AE-FT234X GND -> WT32 GND
+  IO0 -> GND only while entering download mode
+
+
+AURORA / WT32-ETH01
+-------------------
+LOCAL PREVIEW:
+  GPIO4  -> SN74AHCT125N input -> PL9823-F8 x6
+  Art-Net channels 19..36
+
+SAFE/ARM:
+  GPIO14 <- SAFE/ARM switch + external pulldown
+
+FUTURE / FINAL DMX:
+  GPIO17 -> RS-485 DI (UART2 TXD)
+  GPIO33 -> RS-485 DE + /RE control (WT32 label: 485_EN)
+
+Static IP:
+  2.0.0.11 / 255.0.0.0
+
+Programming:
+  AE-FT234X TXD -> WT32 RX0
+  AE-FT234X RXD -> WT32 TX0
+  AE-FT234X GND -> WT32 GND
+  IO0 -> GND only while entering download mode
+
+
+OUTPUT SEMANTICS
+----------------
+SAFE + valid Art-Net:
+  PL9823 preview = LIVE
+  stage DMX      = ZERO
+
+ARM + valid Art-Net:
+  PL9823 preview = LIVE
+  stage DMX      = LIVE
+
+Ethernet loss or Art-Net timeout:
+  PL9823 preview = BLACK
+  stage DMX      = ZERO
+
+The preview and DMX pins are separate, so the PL9823 circuit can remain
+installed permanently when the RS-485/DMX output stage is added.

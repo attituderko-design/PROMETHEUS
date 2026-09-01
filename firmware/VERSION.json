@@ -1,0 +1,15 @@
+{
+  "name": "PROMETHEUS NODE FIRMWARE",
+  "version": "0.3.3",
+  "nodes": [
+    "FULGUR",
+    "AURORA"
+  ],
+  "changes": [
+    "FULGUR hardware migrated from Olimex ESP32-POE to Wireless-Tag WT32-ETH01",
+    "FULGUR keeps GPIO4 preview, GPIO14 SAFE/ARM, IP 2.0.0.10 and Art-Net channels 1..18",
+    "FULGUR flashing now uses AE-FT234X and WT32 IO0-to-GND download mode",
+    "GitHub Actions bootstrap fixed so PlatformIO builds actually execute",
+    "Boot SAFE, Art-Net timeout and Ethernet fail-safe behavior retained"
+  ]
+}
