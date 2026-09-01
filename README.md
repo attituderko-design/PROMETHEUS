@@ -1,5 +1,16 @@
 # PROMETHEUS — Scriabin Luce Controller v0.6.3
 
+PROMETHEUS is one product repository. The Windows controller and the FULGUR/AURORA node firmware are separate deployable components of that product, not separate services.
+
+## Repository layout
+
+- Root Python files: Windows controller and `PROMETHEUS.exe` build.
+- `firmware/`: FULGUR/AURORA WT32-ETH01 firmware, hardware documents and flashing scripts.
+- `.github/workflows/test.yml`: controller tests.
+- `.github/workflows/firmware-build.yml`: all four PlatformIO firmware builds.
+
+The former `PROMETHEUS_NODE_FIRMWARE` history is retained in this repository through the firmware integration merge.
+
 ## 正式コードネーム
 
 - Windows executable: **`PROMETHEUS.exe`**
